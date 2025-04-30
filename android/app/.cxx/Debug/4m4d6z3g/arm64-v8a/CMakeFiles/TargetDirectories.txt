@@ -1,0 +1,2 @@
+C:/Users/VICTUS/Desktop/M.USTU/pr/prosmart/android/app/.cxx/Debug/4m4d6z3g/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/VICTUS/Desktop/M.USTU/pr/prosmart/android/app/.cxx/Debug/4m4d6z3g/arm64-v8a/CMakeFiles/rebuild_cache.dir

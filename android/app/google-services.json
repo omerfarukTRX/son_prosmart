@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "503392659179",
+    "project_id": "prosmartvs",
+    "storage_bucket": "prosmartvs.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503392659179:android:e79603806fee2a975380ae",
+        "android_client_info": {
+          "package_name": "com.app.polimat.prosmart"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1wZkg0YKmT9GG22Jg91GcQchHBqbgjwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503392659179:android:a21f70d9c434a5fc5380ae",
+        "android_client_info": {
+          "package_name": "com.example.prosmart"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1wZkg0YKmT9GG22Jg91GcQchHBqbgjwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
