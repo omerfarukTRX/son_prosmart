@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:prosmart/enums/kullanici_rolleri.dart';
 import 'package:prosmart/service/kimlikislemleri/auth_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -17,10 +18,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _siteNameController = TextEditingController();
+  final _blockController = TextEditingController();
+  final _apartmentController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   bool _isLoading = false;
   String? _errorMessage;
   bool _showPassword = false;
+  bool _isOwner = true; // true: Kat Maliki, false: Kiracı
 
   @override
   void dispose() {
@@ -28,6 +34,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _siteNameController.dispose();
+    _blockController.dispose();
+    _apartmentController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -39,7 +49,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
+              constraints: const BoxConstraints(maxWidth: 500),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -47,16 +57,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Logo ve başlık
-                    const Center(
+                    Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                          'ProSmart',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
+                        padding: const EdgeInsets.all(16.0),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          height: 80,
                         ),
                       ),
                     ),
@@ -73,6 +79,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
 
                     const SizedBox(height: 24),
+
+                    // Hata mesajı
+                    if (_errorMessage != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline,
+                                color: Colors.red.shade700),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: TextStyle(color: Colors.red.shade700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Ad Soyad
                     TextFormField(
@@ -114,6 +146,127 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
                         return null;
                       },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Telefon
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefon',
+                        prefixIcon: Icon(Icons.phone),
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Lütfen telefon numaranızı girin';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Site Adı Manuel Giriş
+                    TextFormField(
+                      controller: _siteNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Site Adı',
+                        prefixIcon: Icon(Icons.apartment),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Lütfen site adını girin';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Blok ve Daire
+                    Row(
+                      children: [
+                        // Blok
+                        Expanded(
+                          flex: 1,
+                          child: TextFormField(
+                            controller: _blockController,
+                            decoration: const InputDecoration(
+                              labelText: 'Blok',
+                              prefixIcon: Icon(Icons.business),
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Lütfen blok bilgisini girin';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Daire
+                        Expanded(
+                          flex: 1,
+                          child: TextFormField(
+                            controller: _apartmentController,
+                            decoration: const InputDecoration(
+                              labelText: 'Daire No',
+                              prefixIcon: Icon(Icons.door_front_door),
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Lütfen daire no girin';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Kat Maliki / Kiracı seçimi
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('Kat Maliki'),
+                              value: true,
+                              groupValue: _isOwner,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isOwner = value!;
+                                });
+                              },
+                            ),
+                          ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('Kiracı'),
+                              value: false,
+                              groupValue: _isOwner,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isOwner = value!;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 16),
@@ -178,32 +331,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Hata mesajı
-                    if (_errorMessage != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.error_outline,
-                                color: Colors.red.shade700),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(color: Colors.red.shade700),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
                     // Kayıt ol butonu
                     ElevatedButton(
                       onPressed: _isLoading ? null : _register,
@@ -246,11 +373,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     });
 
     try {
+      // Kullanıcı rolü ve site bilgilerini içeren ek veriler
+      final Map<String, dynamic> ekBilgiler = {
+        'siteName': _siteNameController.text,
+        'block': _blockController.text,
+        'apartment': _apartmentController.text,
+        'role': _isOwner ? 'siteSakini' : 'kiraci', // Rol bilgisi
+      };
+
       // RegisterParams kullanarak güncelleyin
       final params = RegisterParams(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         displayName: _displayNameController.text.trim(),
+        telefon: _phoneController.text.trim(),
+        rol: _isOwner ? KullaniciRolu.siteSakini : KullaniciRolu.kiraci,
+        ekBilgiler: ekBilgiler,
       );
 
       await ref.read(registerProvider(params).future);

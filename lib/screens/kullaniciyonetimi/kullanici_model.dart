@@ -11,6 +11,7 @@ class KullaniciModel {
   final DateTime? kayitTarihi;
   final String? profilFotoUrl;
   final Map<String, dynamic>? ekBilgiler;
+  final List<String>? siteIds; // Yeni eklenen alan
 
   KullaniciModel({
     required this.id,
@@ -22,6 +23,7 @@ class KullaniciModel {
     this.kayitTarihi,
     this.profilFotoUrl,
     this.ekBilgiler,
+    this.siteIds, // Constructor'a ekledik
   });
 
   // Firestore'dan dönüştürme
@@ -37,7 +39,21 @@ class KullaniciModel {
       kayitTarihi: (data['kayitTarihi'] as Timestamp?)?.toDate(),
       profilFotoUrl: data['profilFotoUrl'],
       ekBilgiler: data['ekBilgiler'],
+      siteIds:
+          (data['siteIds'] as List<dynamic>?)?.cast<String>(), // Veri dönüşümü
     );
+  }
+  static KullaniciRolu _parseRol(String? rolString) {
+    if (rolString == null) return KullaniciRolu.atanmamis;
+
+    try {
+      return KullaniciRolu.values.firstWhere(
+        (rol) => rol.toString().split('.').last == rolString,
+        orElse: () => KullaniciRolu.atanmamis,
+      );
+    } catch (e) {
+      return KullaniciRolu.atanmamis;
+    }
   }
 
   // Firestore'a dönüştürme
@@ -53,21 +69,8 @@ class KullaniciModel {
           : Timestamp.now(),
       'profilFotoUrl': profilFotoUrl,
       'ekBilgiler': ekBilgiler,
+      'siteIds': siteIds, // Firestore'a kayıt
     };
-  }
-
-  // Yardımcı metot - Rol string'ini enum'a dönüştürme
-  static KullaniciRolu _parseRol(String? rolString) {
-    if (rolString == null) return KullaniciRolu.atanmamis;
-
-    try {
-      return KullaniciRolu.values.firstWhere(
-        (rol) => rol.toString().split('.').last == rolString,
-        orElse: () => KullaniciRolu.atanmamis,
-      );
-    } catch (e) {
-      return KullaniciRolu.atanmamis;
-    }
   }
 
   // Kopyalama ile değişiklik yapma
@@ -80,6 +83,7 @@ class KullaniciModel {
     DateTime? kayitTarihi,
     String? profilFotoUrl,
     Map<String, dynamic>? ekBilgiler,
+    List<String>? siteIds, // copyWith'e ekledik
   }) {
     return KullaniciModel(
       id: id,
@@ -91,6 +95,7 @@ class KullaniciModel {
       kayitTarihi: kayitTarihi ?? this.kayitTarihi,
       profilFotoUrl: profilFotoUrl ?? this.profilFotoUrl,
       ekBilgiler: ekBilgiler ?? this.ekBilgiler,
+      siteIds: siteIds ?? this.siteIds, // Kopyalama
     );
   }
 }

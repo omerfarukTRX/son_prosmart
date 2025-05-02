@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:prosmart/enums/kullanici_rolleri.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:prosmart/screens/kullaniciyonetimi/kullanici_provider.dart';
+import 'package:prosmart/screens/kullaniciyonetimi/stat_card.dart';
+import 'package:prosmart/widgets/stat_card.dart';
 
 class KullaniciDashboard extends ConsumerWidget {
   const KullaniciDashboard({super.key});
@@ -56,38 +58,29 @@ class KullaniciDashboard extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Başlık
-                const Text(
-                  'Kullanıcı İstatistikleri',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Divider(),
-                const SizedBox(height: 16),
+                // Başlık kaldırıldı (istendiği gibi)
 
                 // Özet İstatistikler
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildStatCard(
-                      'Toplam Kullanıcı',
-                      toplamKullanici.toString(),
-                      Icons.people,
-                      Colors.blue,
+                    StatCard(
+                      title: 'Toplam Kullanıcı',
+                      value: toplamKullanici.toString(),
+                      icon: Icons.people,
+                      color: Colors.blue,
                     ),
-                    _buildStatCard(
-                      'Aktif Kullanıcı',
-                      '$aktifKullanici',
-                      Icons.check_circle,
-                      Colors.green,
+                    StatCard(
+                      title: 'Aktif Kullanıcı',
+                      value: '$aktifKullanici',
+                      icon: Icons.check_circle,
+                      color: Colors.green,
                     ),
-                    _buildStatCard(
-                      'Pasif Kullanıcı',
-                      '${toplamKullanici - aktifKullanici}',
-                      Icons.cancel,
-                      Colors.red,
+                    StatCard(
+                      title: 'Pasif Kullanıcı',
+                      value: '${toplamKullanici - aktifKullanici}',
+                      icon: Icons.cancel,
+                      color: Colors.red,
                     ),
                   ],
                 ),
@@ -104,8 +97,11 @@ class KullaniciDashboard extends ConsumerWidget {
                 const SizedBox(height: 16),
 
                 // Kategori çubuk grafiği
-                _buildCategoryBarChart(prositCalisanlar, siteCalisanlar,
-                    siteSakinleri, tedarikciler),
+                SizedBox(
+                  height: 200,
+                  child: _buildCategoryBarChart(prositCalisanlar,
+                      siteCalisanlar, siteSakinleri, tedarikciler),
+                ),
                 const SizedBox(height: 24),
 
                 // Rol Dağılımı
@@ -134,122 +130,82 @@ class KullaniciDashboard extends ConsumerWidget {
     );
   }
 
-  // İstatistik kartı
-  Widget _buildStatCard(
-      String title, String value, IconData icon, Color color) {
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              color: color.withOpacity(0.8),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
   // Kategori çubuk grafiği
   Widget _buildCategoryBarChart(
       int prosit, int site, int sakin, int tedarikci) {
-    return SizedBox(
-      height: 200,
-      child: BarChart(
-        BarChartData(
-          alignment: BarChartAlignment.spaceAround,
-          barGroups: [
-            _makeBarGroup(0, prosit.toDouble(), Colors.blue),
-            _makeBarGroup(1, site.toDouble(), Colors.green),
-            _makeBarGroup(2, sakin.toDouble(), Colors.orange),
-            _makeBarGroup(3, tedarikci.toDouble(), Colors.purple),
-          ],
-          titlesData: FlTitlesData(
-            show: true,
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  const titles = [
-                    'Prosit\nÇalışanları',
-                    'Site\nÇalışanları',
-                    'Site\nSakinleri',
-                    'Tedarikçiler',
-                  ];
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        barGroups: [
+          _makeBarGroup(0, prosit.toDouble(), Colors.blue),
+          _makeBarGroup(1, site.toDouble(), Colors.green),
+          _makeBarGroup(2, sakin.toDouble(), Colors.orange),
+          _makeBarGroup(3, tedarikci.toDouble(), Colors.purple),
+        ],
+        titlesData: FlTitlesData(
+          show: true,
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                const titles = [
+                  'Prosit\nÇalışanları',
+                  'Site\nÇalışanları',
+                  'Site\nSakinleri',
+                  'Tedarikçiler',
+                ];
 
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      titles[value.toInt()],
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.center,
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    titles[value.toInt()],
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
-                  );
-                },
-                reservedSize: 40,
-              ),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              },
+              reservedSize: 40,
             ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  if (value == 0) {
-                    return const SizedBox();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: Text(
-                      value.toInt().toString(),
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                if (value == 0) {
+                  return const SizedBox();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Text(
+                    value.toInt().toString(),
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
                     ),
-                  );
-                },
-                reservedSize: 30,
-              ),
-            ),
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
+                  ),
+                );
+              },
+              reservedSize: 30,
             ),
           ),
-          borderData: FlBorderData(
-            show: false,
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
           ),
-          gridData: const FlGridData(
-            show: true,
-            drawHorizontalLine: true,
-            drawVerticalLine: false,
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
           ),
+        ),
+        borderData: FlBorderData(
+          show: false,
+        ),
+        gridData: const FlGridData(
+          show: true,
+          drawHorizontalLine: true,
+          drawVerticalLine: false,
         ),
       ),
     );

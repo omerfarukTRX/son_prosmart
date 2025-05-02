@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:prosmart/admin/menu_manager_screen.dart';
 import 'package:prosmart/form/form_builder.dart';
 import 'package:prosmart/rota/temelekranlar.dart';
-import 'package:prosmart/screens/kat_mulkiyeti_screen.dart';
 import 'package:prosmart/screens/kullaniciyonetimi/kullanici_yonetim_page.dart';
 import 'package:prosmart/screens/main_container.dart';
 import 'package:prosmart/screens/projeisleri/proje_liste.dart';
@@ -33,8 +32,6 @@ class AppRoutes {
         return SettingsScreen();
       case '/menu-manager':
         return MenuManagerScreen();
-      case '/asistan':
-        return KatMulkiyetiScreen();
       case '/form':
         return FormBuilderScreen(projectId: "U1yAFkROLeFaRkIk2qIg");
       default:
@@ -276,15 +273,7 @@ class AppRoutes {
             ),
           ),
         ),
-        GoRoute(
-          path: '/asistan',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: MainContainer(
-              title: 'Kat Mülkiyet Kanunu Asistanı',
-              child: KatMulkiyetiScreen(),
-            ),
-          ),
-        ),
+
         GoRoute(
           path: '/form',
           pageBuilder: (context, state) => NoTransitionPage(
