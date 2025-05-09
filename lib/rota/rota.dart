@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:prosmart/admin/menu_manager_screen.dart';
+import 'package:prosmart/enums/kullanici_rolleri.dart';
 import 'package:prosmart/form/form_builder.dart';
 import 'package:prosmart/rota/temelekranlar.dart';
 import 'package:prosmart/screens/kullaniciyonetimi/kullanici_yonetim_page.dart';
 import 'package:prosmart/screens/main_container.dart';
 import 'package:prosmart/screens/projeisleri/proje_liste.dart';
+import 'package:prosmart/screens/sitesakini/sitesakini.dart';
 import 'package:prosmart/service/kimlikislemleri/auth_provider.dart';
 import 'package:prosmart/service/kimlikislemleri/kullanici_onaylama_screen.dart';
 import 'package:prosmart/service/kimlikislemleri/login_screen.dart';
@@ -34,6 +36,8 @@ class AppRoutes {
         return MenuManagerScreen();
       case '/form':
         return FormBuilderScreen(projectId: "U1yAFkROLeFaRkIk2qIg");
+      case '/site-sakini-kiraci':
+        return SiteSakiniKiraciDashboard();
       default:
         return DashboardScreen();
     }
@@ -47,7 +51,7 @@ class AppRoutes {
 
     return GoRouter(
       initialLocation: '/',
-      redirect: (context, state) {
+      redirect: (context, state) async {
         // Mevcut yol
         final path = state.uri.path;
 
@@ -91,9 +95,6 @@ class AppRoutes {
                 return '/'; // Ana sayfaya yönlendir
               }
 
-              // Rol bazlı erişim kontrolü yapılabilir (userRoleProvider kullanarak)
-              // ...
-
               return null; // Diğer sayfalara normal erişim
 
             case AuthStatus.initial:
@@ -109,36 +110,17 @@ class AppRoutes {
         return null; // Varsayılan durum: Yönlendirme yok
       },
       routes: [
-        // Ana sayfa
+        // Ana sayfa - Rol kontrolü burada yapılıyor
         GoRoute(
           path: '/',
           pageBuilder: (context, state) {
             return NoTransitionPage(
               child: Consumer(
                 builder: (context, ref, child) {
-                  // Menü öğelerini al
-                  final menuItemsAsync = ref.watch(menuItemsProvider);
+                  // Kullanıcı rolünü al
+                  final userRoleAsync = ref.watch(getCurrentUserRoleProvider);
 
-                  return menuItemsAsync.when(
-                    data: (menuItems) {
-                      // İlk menü öğesinin route'unu al
-                      if (menuItems.isNotEmpty) {
-                        final firstMenuRoute = menuItems.first.route;
-
-                        return MainContainer(
-                          title: menuItems.first.title,
-                          child: _getPageForRoute(firstMenuRoute),
-                        );
-                      }
-
-                      // Menü öğesi yoksa
-                      return MainContainer(
-                        title: 'Sayfa Bulunamadı',
-                        child: Center(
-                          child: Text('Görüntülenecek menü bulunamadı'),
-                        ),
-                      );
-                    },
+                  return userRoleAsync.when(
                     loading: () => MainContainer(
                       title: 'Yükleniyor',
                       child: Center(
@@ -148,9 +130,56 @@ class AppRoutes {
                     error: (error, stack) => MainContainer(
                       title: 'Hata',
                       child: Center(
-                        child: Text('Menü yüklenirken hata oluştu: $error'),
+                        child: Text('Rol bilgisi alınamadı: $error'),
                       ),
                     ),
+                    data: (userRole) {
+                      // Site sakini veya kiracı ise direkt o sayfaya yönlendir
+                      if (userRole == KullaniciRolu.siteSakini ||
+                          userRole == KullaniciRolu.kiraci) {
+                        return MainContainer(
+                          title: 'Ana Sayfa',
+                          child: const SiteSakiniKiraciDashboard(),
+                        );
+                      }
+
+                      // Diğer roller için normal menü sistemini kullan
+                      final menuItemsAsync = ref.watch(menuItemsProvider);
+
+                      return menuItemsAsync.when(
+                        data: (menuItems) {
+                          // İlk menü öğesinin route'unu al
+                          if (menuItems.isNotEmpty) {
+                            final firstMenuRoute = menuItems.first.route;
+
+                            return MainContainer(
+                              title: menuItems.first.title,
+                              child: _getPageForRoute(firstMenuRoute),
+                            );
+                          }
+
+                          // Menü öğesi yoksa
+                          return MainContainer(
+                            title: 'Sayfa Bulunamadı',
+                            child: Center(
+                              child: Text('Görüntülenecek menü bulunamadı'),
+                            ),
+                          );
+                        },
+                        loading: () => MainContainer(
+                          title: 'Yükleniyor',
+                          child: Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        error: (error, stack) => MainContainer(
+                          title: 'Hata',
+                          child: Center(
+                            child: Text('Menü yüklenirken hata oluştu: $error'),
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -209,8 +238,8 @@ class AppRoutes {
                     ),
                     const SizedBox(height: 32),
                     ElevatedButton(
-                      onPressed: () {
-                        ref.read(logoutProvider);
+                      onPressed: () async {
+                        await ref.read(logoutProvider.future);
                         context.go('/login');
                       },
                       style: ElevatedButton.styleFrom(
@@ -273,13 +302,21 @@ class AppRoutes {
             ),
           ),
         ),
-
         GoRoute(
           path: '/form',
           pageBuilder: (context, state) => NoTransitionPage(
             child: MainContainer(
               title: 'Form Oluşturucu',
               child: FormBuilderScreen(projectId: "U1yAFkROLeFaRkIk2qIg"),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/site-sakini-kiraci',
+          pageBuilder: (context, state) => NoTransitionPage(
+            child: MainContainer(
+              title: 'Ana Sayfa',
+              child: const SiteSakiniKiraciDashboard(),
             ),
           ),
         ),

@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:prosmart/config/theme/scale_theme.dart';
+import 'package:prosmart/enums/kullanici_rolleri.dart';
 import 'package:prosmart/providers/menu_provider.dart';
 import 'package:prosmart/utils/icon_helper.dart';
 
-class MainContainer extends StatelessWidget {
+class MainContainer extends ConsumerWidget {
   final Widget child;
   final String title;
   final List<Widget>? actions;
@@ -18,41 +19,69 @@ class MainContainer extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWideScreen = constraints.maxWidth > 1100;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userRoleAsync = ref.watch(currentUserRoleProvider);
 
-        return Scaffold(
-          body: isWideScreen
-              // Masaüstü görünümü - Sabit drawer
-              ? Row(
-                  children: [
-                    const MainDrawer(),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          MainAppBar(title: title, actions: actions),
-                          Expanded(child: child),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              // Mobil görünüm - Normal drawer
-              : Column(
-                  children: [
-                    MainAppBar(
-                      title: title,
-                      actions: actions,
-                      showMenuButton: true,
-                    ),
-                    Expanded(child: child),
-                  ],
+    return userRoleAsync.when(
+      data: (userRoles) {
+        // Site sakini veya kiracı ise menü gösterme
+        final isSiteSakiniKiraci =
+            userRoles.contains(KullaniciRolu.siteSakini) ||
+                userRoles.contains(KullaniciRolu.kiraci);
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isWideScreen = constraints.maxWidth > 1100;
+
+            // Site sakini/kiracı için sadece app bar ve içerik göster
+            if (isSiteSakiniKiraci) {
+              return Scaffold(
+                appBar: MainAppBar(
+                  title: title,
+                  actions: actions,
+                  showMenuButton: false,
                 ),
-          drawer: isWideScreen ? null : const MainDrawer(),
+                body: child,
+              );
+            }
+
+            // Diğer roller için normal layout
+            return Scaffold(
+              body: isWideScreen
+                  ? Row(
+                      children: [
+                        const MainDrawer(),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              MainAppBar(title: title, actions: actions),
+                              Expanded(child: child),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        MainAppBar(
+                          title: title,
+                          actions: actions,
+                          showMenuButton: true,
+                        ),
+                        Expanded(child: child),
+                      ],
+                    ),
+              drawer: isWideScreen ? null : const MainDrawer(),
+            );
+          },
         );
       },
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stack) => Scaffold(
+        body: Center(child: Text('Hata: $error')),
+      ),
     );
   }
 }

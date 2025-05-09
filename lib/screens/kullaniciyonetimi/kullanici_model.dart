@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:prosmart/enums/kullanici_rolleri.dart';
+import 'package:prosmart/screens/kullaniciyonetimi/proje_assocition.dart';
 
 class KullaniciModel {
   final String id;
@@ -11,7 +12,7 @@ class KullaniciModel {
   final DateTime? kayitTarihi;
   final String? profilFotoUrl;
   final Map<String, dynamic>? ekBilgiler;
-  final List<String>? siteIds; // Yeni eklenen alan
+  final List<ProjectAssociation>? projectAssociations; // Yeni alan
 
   KullaniciModel({
     required this.id,
@@ -23,7 +24,7 @@ class KullaniciModel {
     this.kayitTarihi,
     this.profilFotoUrl,
     this.ekBilgiler,
-    this.siteIds, // Constructor'a ekledik
+    this.projectAssociations, // Constructor'a ekledik
   });
 
   // Firestore'dan dönüştürme
@@ -39,10 +40,12 @@ class KullaniciModel {
       kayitTarihi: (data['kayitTarihi'] as Timestamp?)?.toDate(),
       profilFotoUrl: data['profilFotoUrl'],
       ekBilgiler: data['ekBilgiler'],
-      siteIds:
-          (data['siteIds'] as List<dynamic>?)?.cast<String>(), // Veri dönüşümü
+      projectAssociations: (data['projectAssociations'] as List<dynamic>?)
+          ?.map((e) => ProjectAssociation.fromMap(e as Map<String, dynamic>))
+          .toList(),
     );
   }
+
   static KullaniciRolu _parseRol(String? rolString) {
     if (rolString == null) return KullaniciRolu.atanmamis;
 
@@ -69,7 +72,8 @@ class KullaniciModel {
           : Timestamp.now(),
       'profilFotoUrl': profilFotoUrl,
       'ekBilgiler': ekBilgiler,
-      'siteIds': siteIds, // Firestore'a kayıt
+      'projectAssociations':
+          projectAssociations?.map((e) => e.toMap()).toList(),
     };
   }
 
@@ -83,7 +87,7 @@ class KullaniciModel {
     DateTime? kayitTarihi,
     String? profilFotoUrl,
     Map<String, dynamic>? ekBilgiler,
-    List<String>? siteIds, // copyWith'e ekledik
+    List<ProjectAssociation>? projectAssociations, // copyWith'e ekledik
   }) {
     return KullaniciModel(
       id: id,
@@ -95,7 +99,8 @@ class KullaniciModel {
       kayitTarihi: kayitTarihi ?? this.kayitTarihi,
       profilFotoUrl: profilFotoUrl ?? this.profilFotoUrl,
       ekBilgiler: ekBilgiler ?? this.ekBilgiler,
-      siteIds: siteIds ?? this.siteIds, // Kopyalama
+      projectAssociations:
+          projectAssociations ?? this.projectAssociations, // Kopyalama
     );
   }
 }

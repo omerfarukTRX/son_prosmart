@@ -121,6 +121,36 @@ final currentAuthStatusProvider = StateProvider<AuthStatus>((ref) {
   return AuthStatus.initial;
 });
 
+// Kullanıcı rolünü getiren provider
+final getCurrentUserRoleProvider = FutureProvider<KullaniciRolu?>((ref) async {
+  final authState = ref.watch(authStateProvider);
+
+  if (authState.value == null) {
+    return null;
+  }
+
+  try {
+    final firestore = ref.watch(firestoreProvider);
+    final userData = await firestore
+        .collection('kullanicilar')
+        .doc(authState.value!.uid)
+        .get();
+
+    if (userData.exists) {
+      final rolStr = userData.data()?['rol'] as String? ?? 'atanmamis';
+      return KullaniciRolu.values.firstWhere(
+        (r) => r.toString().split('.').last == rolStr,
+        orElse: () => KullaniciRolu.atanmamis,
+      );
+    }
+
+    return null;
+  } catch (e) {
+    print('Kullanıcı rolü alınamadı: $e');
+    return null;
+  }
+});
+
 // Giriş işlemi provider
 final loginProvider = FutureProvider.family<AuthResult, LoginParams>(
   (ref, params) async {
@@ -284,6 +314,7 @@ final approveUserProvider =
     });
     return true;
   } catch (e) {
+    print('Kullanıcı onaylama hatası: $e');
     return false;
   }
 });
@@ -303,6 +334,7 @@ final rejectUserProvider =
     });
     return true;
   } catch (e) {
+    print('Kullanıcı reddetme hatası: $e');
     return false;
   }
 });

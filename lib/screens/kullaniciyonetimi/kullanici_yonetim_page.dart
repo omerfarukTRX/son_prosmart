@@ -5,11 +5,35 @@ import 'package:prosmart/screens/kullaniciyonetimi/kullanici_dashboard.dart';
 import 'package:prosmart/screens/kullaniciyonetimi/kullanici_edit_dialog.dart';
 import 'package:prosmart/screens/kullaniciyonetimi/kullanici_model.dart';
 import 'package:prosmart/screens/kullaniciyonetimi/kullanici_provider.dart';
+import 'package:prosmart/screens/kullaniciyonetimi/proje_assocition.dart';
+import 'package:prosmart/service/kimlikislemleri/kullanici_onaylama_screen.dart';
 import 'package:prosmart/widgets/stat_card.dart';
 import 'package:prosmart/models/proje_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:prosmart/service/kimlikislemleri/auth_provider.dart';
 import 'package:prosmart/service/proje_repository.dart';
+
+final selectedProjectsProvider =
+    StateProvider.family<List<ProjectAssociation>, String>((ref, userId) {
+  final seciliSiteler = ref.watch(kullaniciSiteIliskiProvider(userId));
+
+  if (seciliSiteler.isEmpty) {
+    return [];
+  }
+
+  return seciliSiteler.map((siteId) {
+    // Her site için varsayılan Kiracı rolü ve boş bilgiler oluştur
+    return ProjectAssociation(
+      projectId: siteId,
+      role: 'kiraci', // Varsayılan rol
+      hasSpecialAccess: false, // Varsayılan olarak özel erişim yok
+      additionalInfo: {
+        'block': '',
+        'apartment': '',
+      },
+    );
+  }).toList();
+});
 
 // Proje listesi provider
 final projeListProvider = StreamProvider<List<ProjeModel>>((ref) {
@@ -629,10 +653,7 @@ class EnhancedApproveUsersScreen extends ConsumerWidget {
 
                     const SizedBox(height: 16),
 
-                    // Rol seçimi
-                    _buildRoleSelection(context, ref, user),
-
-                    const SizedBox(height: 16),
+                    // Rol seçimi kısmı kaldırıldı
 
                     // Proje seçimi
                     _buildProjectSelection(context, ref, user),
@@ -675,20 +696,10 @@ class EnhancedApproveUsersScreen extends ConsumerWidget {
                         return;
                       }
 
-                      final selectedRole =
-                          ref.read(userRoleSelectionProvider(user.id));
-                      if (selectedRole == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Lütfen bir rol seçin'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
+                      // userRoleSelectionProvider artık kullanılmıyor, bu nedenle kontrol kaldırıldı
 
                       _showApproveConfirmationDialog(
-                          context, ref, user, seciliSiteler, selectedRole);
+                          context, ref, user, seciliSiteler);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
@@ -1000,140 +1011,397 @@ class EnhancedApproveUsersScreen extends ConsumerWidget {
 
   // Onaylama onay dialog'u
   void _showApproveConfirmationDialog(BuildContext context, WidgetRef ref,
-      KullaniciModel user, List<String> siteIds, KullaniciRolu selectedRole) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Kullanıcıyı Onayla'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-                '${user.adSoyad} kullanıcısına onay vermek istediğinize emin misiniz?'),
-            const SizedBox(height: 16),
+      KullaniciModel user, List<String> seciliSiteler) {
+    // Önce proje bilgilerini girme dialogunu göster
+    _showProjectDetailsDialog(context, ref, user).then((confirmed) {
+      if (confirmed != true) return; // Kullanıcı iptal ettiyse işlemi sonlandır
 
-            // Seçilen rol
-            Row(
-              children: [
-                Text(
-                  'Seçilen Rol:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getRoleColor(selectedRole).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: _getRoleColor(selectedRole)),
-                  ),
-                  child: Text(
-                    _getRoleName(selectedRole),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: _getRoleColor(selectedRole),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      // Provider'dan düzenlenmiş projeleri al
+      final List<ProjectAssociation> projectAssociations =
+          ref.read(selectedProjectsProvider(user.id));
 
-            const SizedBox(height: 16),
-            const Text(
-              'Seçilen Projeler:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            ...ref.read(projeListProvider).when(
-                  data: (projeler) {
-                    return siteIds.map((siteId) {
-                      final proje = projeler.firstWhere(
-                        (p) => p.id == siteId,
-                        orElse: () => ProjeModel(
-                          id: siteId,
-                          unvan: 'Bilinmeyen Proje',
-                          adres: '',
-                          tip: ProjeTipi.site,
-                          konum: const GeoPoint(0, 0),
-                          blokSayisi: 0,
-                          bagimsizBolumSayisi: 0,
-                          ibanNo: '',
-                          vergiNo: '',
-                          olusturulmaTarihi: Timestamp.now(),
-                        ),
-                      );
+      // Provider'dan proje listesini al
+      final projeListAsyncValue = ref.read(projeListProvider);
+      final List<ProjeModel> projeler = projeListAsyncValue.value ?? [];
+
+      // Onay dialogunu göster
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Kullanıcıyı Onayla'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  '${user.adSoyad} kullanıcısını aşağıdaki projelerle ilişkilendirerek onaylamak istediğinize emin misiniz?'),
+              const SizedBox(height: 16),
+
+              // Seçili projelerin listesi
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ...projectAssociations.map((project) {
+                      // projeler listesinden projeyi bul
+                      ProjeModel? projectModel;
+                      for (var proje in projeler) {
+                        if (proje.id == project.projectId) {
+                          projectModel = proje;
+                          break;
+                        }
+                      }
+
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 4.0),
+                        padding: const EdgeInsets.only(bottom: 8.0),
                         child: Row(
                           children: [
                             const Icon(Icons.check_circle,
                                 color: Colors.green, size: 16),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(proje.unvan)),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    projectModel?.unvan ?? "Bilinmeyen Proje",
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    'Rol: ${project.role == "siteSakini" ? "Kat Maliki" : "Kiracı"}${project.hasSpecialAccess ? " (Özel Erişim)" : ""}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  if (project.additionalInfo != null)
+                                    Text(
+                                      'Blok: ${project.additionalInfo!["block"]}, Daire: ${project.additionalInfo!["apartment"]}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       );
-                    }).toList();
-                  },
-                  loading: () => [const CircularProgressIndicator()],
-                  error: (_, __) => [const Text('Proje bilgileri yüklenemedi')],
+                    }),
+                  ],
                 ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+
+                // 1. Kullanıcıyı aktifleştir ve onayla
+                final userApproveResult =
+                    await ref.read(approveUserProvider(user.id).future);
+
+                if (userApproveResult) {
+                  // 2. Kullanıcıyı projelerle ilişkilendir
+                  final updatedUser = user.copyWith(
+                    projectAssociations: projectAssociations,
+                  );
+
+                  final userUpdateResult = await ref
+                      .read(kullaniciGuncelleProvider(updatedUser).future);
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            '${user.adSoyad} onaylandı ve ${projectAssociations.length} projeyle ilişkilendirildi'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+
+                    // Listeyi yenile
+                    ref.invalidate(pendingUsersProvider);
+                  }
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            '${user.adSoyad} onaylanırken bir hata oluştu'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+              ),
+              child: const Text('Onayla'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
+      );
+    });
+  }
 
-              // Kullanıcıyı güncelle - rol ve site ID'leri
-              final updatedUser = user.copyWith(
-                rol: selectedRole,
-                siteIds: siteIds, // Artık ekBilgiler içinde değil
-              );
+// Proje detayları düzenleme dialogu
+  Future<bool?> _showProjectDetailsDialog(
+      BuildContext context, WidgetRef ref, KullaniciModel user) async {
+    // Provider'dan seçilen projeleri al
+    final projectAssociations = ref.read(selectedProjectsProvider(user.id));
 
-              await ref.read(kullaniciGuncelleProvider(updatedUser).future);
+    // Provider'dan proje listesini al
+    final projeListAsyncValue = ref.read(projeListProvider);
+    final List<ProjeModel> projeler = projeListAsyncValue.value ?? [];
 
-              // Kullanıcı onaylama
-              final result =
-                  await ref.read(approveUserProvider(user.id).future);
+    // Ek bilgileri düzenlemek için Map kullan
+    final Map<String, ProjectAssociation> editedProjects = {};
 
-              if (context.mounted) {
-                if (result) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          '${user.adSoyad} onaylandı ve projeler ile ilişkilendirildi'),
-                      backgroundColor: Colors.green,
+    // İlk olarak mevcut projeleri kopyala
+    for (var project in projectAssociations) {
+      editedProjects[project.projectId] = project;
+    }
+
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Proje Detaylarını Düzenle'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Lütfen her proje için blok ve daire bilgilerini girin:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  );
+                    const SizedBox(height: 16),
 
-                  // Listeyi yenile
-                  ref.invalidate(pendingUsersProvider);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text('${user.adSoyad} onaylanırken bir hata oluştu'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+                    // Projeler listesi
+                    ...projectAssociations.map((project) {
+                      // projeler listesinden projeyi bul
+                      ProjeModel? projectModel;
+                      for (var proje in projeler) {
+                        if (proje.id == project.projectId) {
+                          projectModel = proje;
+                          break;
+                        }
+                      }
+
+                      // Güncel proje bilgilerini al
+                      final currentProject =
+                          editedProjects[project.projectId] ?? project;
+                      final currentBlock =
+                          currentProject.additionalInfo?['block'] ?? '';
+                      final currentApartment =
+                          currentProject.additionalInfo?['apartment'] ?? '';
+                      final hasSpecialAccess = currentProject.hasSpecialAccess;
+                      final currentRole = currentProject.role;
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                projectModel?.unvan ?? 'Bilinmeyen Proje',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Rol seçimi radyo butonları
+                              const Text(
+                                'Rol:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: RadioListTile<String>(
+                                      title: const Text('Kat Maliki'),
+                                      value: 'siteSakini',
+                                      groupValue: currentRole,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          // Projeyi güncelle
+                                          editedProjects[project.projectId] =
+                                              ProjectAssociation(
+                                            projectId: project.projectId,
+                                            role: value ?? 'siteSakini',
+                                            hasSpecialAccess:
+                                                currentProject.hasSpecialAccess,
+                                            additionalInfo:
+                                                currentProject.additionalInfo,
+                                          );
+                                        });
+                                      },
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: RadioListTile<String>(
+                                      title: const Text('Kiracı'),
+                                      value: 'kiraci',
+                                      groupValue: currentRole,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          // Projeyi güncelle
+                                          editedProjects[project.projectId] =
+                                              ProjectAssociation(
+                                            projectId: project.projectId,
+                                            role: value ?? 'kiraci',
+                                            hasSpecialAccess:
+                                                currentProject.hasSpecialAccess,
+                                            additionalInfo:
+                                                currentProject.additionalInfo,
+                                          );
+                                        });
+                                      },
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              // Özel erişim switch'i
+                              SwitchListTile(
+                                title: const Text('Özel Erişim'),
+                                subtitle: const Text('Site yönetimi yetkisi'),
+                                value: hasSpecialAccess,
+                                onChanged: (value) {
+                                  setState(() {
+                                    // Projeyi güncelle
+                                    editedProjects[project.projectId] =
+                                        ProjectAssociation(
+                                      projectId: project.projectId,
+                                      role: currentProject.role,
+                                      hasSpecialAccess: value,
+                                      additionalInfo:
+                                          currentProject.additionalInfo,
+                                    );
+                                  });
+                                },
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              // Blok ve daire bilgileri
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      decoration: const InputDecoration(
+                                        labelText: 'Blok',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      controller: TextEditingController(
+                                          text: currentBlock),
+                                      onChanged: (value) {
+                                        // additionalInfo map'i güncelle
+                                        final currentInfo =
+                                            currentProject.additionalInfo ?? {};
+                                        currentInfo['block'] = value;
+
+                                        // Projeyi güncelle
+                                        editedProjects[project.projectId] =
+                                            ProjectAssociation(
+                                          projectId: project.projectId,
+                                          role: currentProject.role,
+                                          hasSpecialAccess:
+                                              currentProject.hasSpecialAccess,
+                                          additionalInfo: currentInfo,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      decoration: const InputDecoration(
+                                        labelText: 'Daire',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      controller: TextEditingController(
+                                          text: currentApartment),
+                                      onChanged: (value) {
+                                        // additionalInfo map'i güncelle
+                                        final currentInfo =
+                                            currentProject.additionalInfo ?? {};
+                                        currentInfo['apartment'] = value;
+
+                                        // Projeyi güncelle
+                                        editedProjects[project.projectId] =
+                                            ProjectAssociation(
+                                          projectId: project.projectId,
+                                          role: currentProject.role,
+                                          hasSpecialAccess:
+                                              currentProject.hasSpecialAccess,
+                                          additionalInfo: currentInfo,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
             ),
-            child: const Text('Onayla'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Düzenlenmiş projeleri provider'a kaydet
+                  final updatedProjects = projectAssociations.map((original) {
+                    // Eğer bu proje düzenlenmişse, düzenlenmiş versiyonu kullan
+                    return editedProjects[original.projectId] ?? original;
+                  }).toList();
+
+                  // Provider'ı güncelle
+                  ref.read(selectedProjectsProvider(user.id).notifier).state =
+                      updatedProjects;
+
+                  Navigator.pop(context, true);
+                },
+                child: const Text('Devam Et'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

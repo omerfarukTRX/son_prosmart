@@ -2,12 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:prosmart/enums/kullanici_rolleri.dart';
+import 'package:prosmart/models/proje_model.dart';
+import 'package:prosmart/screens/kullaniciyonetimi/proje_assocition.dart';
+import 'package:prosmart/service/proje_repository.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
 
 import 'package:prosmart/screens/kullaniciyonetimi/kullanici_model.dart';
+
+// Düzenleme ekranı için seçili projeler provider'ı
+final editScreenProjectsProvider =
+    StateProvider.family<List<ProjectAssociation>, String>(
+  (ref, userId) => [],
+);
 
 class KullaniciEditDialog extends ConsumerStatefulWidget {
   final KullaniciModel? kullanici;
@@ -33,6 +42,9 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
   String? _profilFotoOnizlemeUrl;
   bool _fotografYukleniyor = false;
 
+  List<ProjeModel> _projeler = [];
+  bool _projelerLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +62,37 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
     if (widget.kullanici?.profilFotoUrl != null) {
       _profilFotoOnizlemeUrl = widget.kullanici!.profilFotoUrl;
     }
+
+    // Projeleri yükle
+    _loadProjeler();
+
+    // Mevcut proje ilişkilerini ayarla
+    if (widget.kullanici != null &&
+        widget.kullanici!.projectAssociations != null) {
+      // Provider'ı güncelle
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref
+            .read(editScreenProjectsProvider(widget.kullanici!.id).notifier)
+            .state = widget.kullanici!.projectAssociations!;
+      });
+    }
+  }
+
+  Future<void> _loadProjeler() async {
+    try {
+      final projeRepository = ProjeRepository();
+      final projeler = await projeRepository.getProjeler().first;
+
+      setState(() {
+        _projeler = projeler;
+        _projelerLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _projelerLoading = false;
+      });
+      print('Projeler yüklenirken hata: $e');
+    }
   }
 
   @override
@@ -62,6 +105,11 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Seçili projeleri izle (yeni kullanıcı oluşturulurken null olabilir)
+    final selectedProjects = widget.kullanici != null
+        ? ref.watch(editScreenProjectsProvider(widget.kullanici!.id))
+        : <ProjectAssociation>[];
+
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(
@@ -131,6 +179,7 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
                       return null;
                     },
                   ),
+
                   const SizedBox(height: 16),
 
                   // E-posta
@@ -159,6 +208,7 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
                       return null;
                     },
                   ),
+
                   const SizedBox(height: 16),
 
                   // Telefon
@@ -177,15 +227,11 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
                       if (value == null || value.isEmpty) {
                         return 'Telefon boş olamaz';
                       }
-
-                      if (value.length < 10) {
-                        return 'Telefon numarası en az 10 haneli olmalıdır';
-                      }
-
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
+
+                  const SizedBox(height: 16),
 
                   // Rol Seçimi
                   const Text(
@@ -212,6 +258,191 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
                       });
                     },
                   ),
+
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Proje İlişkilendirme Bölümü
+                  if (widget.kullanici != null) ...[
+                    const Text(
+                      'Proje İlişkilendirme',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Proje ekleme butonu
+                    if (!_projelerLoading)
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddProjectDialog(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Proje Ekle'),
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.blue,
+                        ),
+                      )
+                    else
+                      const Center(child: CircularProgressIndicator()),
+
+                    const SizedBox(height: 16),
+
+                    // Seçili projeler listesi
+                    if (selectedProjects.isNotEmpty) ...[
+                      const Text(
+                        'İlişkili Projeler',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Seçili projeleri göster
+                      ...selectedProjects.map((project) {
+                        final projectModel = _findProjeById(project.projectId);
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        projectModel?.unvan ??
+                                            'Proje Bulunamadı',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+
+                                      // Proje rol bilgisi
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  project.role == 'siteSakini'
+                                                      ? Colors.deepOrange
+                                                          .withOpacity(0.1)
+                                                      : Colors.pink
+                                                          .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              project.role == 'siteSakini'
+                                                  ? 'Kat Maliki'
+                                                  : 'Kiracı',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color:
+                                                    project.role == 'siteSakini'
+                                                        ? Colors.deepOrange
+                                                        : Colors.pink,
+                                              ),
+                                            ),
+                                          ),
+
+                                          const SizedBox(width: 8),
+
+                                          // Özel erişim rozeti (varsa)
+                                          if (project.hasSpecialAccess)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 6,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blue
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'Özel Erişim',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+
+                                      // Blok ve daire bilgisi
+                                      if (project.additionalInfo != null)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4.0),
+                                          child: Text(
+                                            'Blok: ${project.additionalInfo!['block'] ?? '-'}, Daire: ${project.additionalInfo!['apartment'] ?? '-'}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade700,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Düzenleme ve silme butonları
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  onPressed: () =>
+                                      _showEditProjectDialog(context, project),
+                                  tooltip: 'Düzenle',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red, size: 18),
+                                  onPressed: () =>
+                                      _removeProjectFromUser(project),
+                                  tooltip: 'Kaldır',
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ] else ...[
+                      // Proje seçilmemiş
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.grey),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Kullanıcı herhangi bir projeye dahil değil.',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+
                   const SizedBox(height: 24),
 
                   // İşlem Butonları
@@ -234,6 +465,398 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // Proje ekleme dialog'u
+  Future<void> _showAddProjectDialog(BuildContext context) async {
+    if (_projeler.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Eklenecek proje bulunamadı'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    ProjeModel? selectedProject = _projeler.first;
+    String role = 'siteSakini'; // Varsayılan rol
+    bool hasSpecialAccess = false;
+    String block = '';
+    String apartment = '';
+
+    return showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Proje Ekle'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Proje seçimi
+                DropdownButtonFormField<ProjeModel>(
+                  decoration: const InputDecoration(
+                    labelText: 'Proje',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: selectedProject,
+                  items: _projeler.map((project) {
+                    return DropdownMenuItem<ProjeModel>(
+                      value: project,
+                      child: Text(project.unvan),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedProject = value;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Rol seçimi
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Kat Maliki'),
+                        value: 'siteSakini',
+                        groupValue: role,
+                        onChanged: (value) {
+                          setState(() {
+                            role = value!;
+                          });
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Kiracı'),
+                        value: 'kiraci',
+                        groupValue: role,
+                        onChanged: (value) {
+                          setState(() {
+                            role = value!;
+                          });
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Özel erişim
+                SwitchListTile(
+                  title: const Text('Özel Erişim'),
+                  subtitle: const Text('Site yönetimi yetkisi'),
+                  value: hasSpecialAccess,
+                  onChanged: (value) {
+                    setState(() {
+                      hasSpecialAccess = value;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Blok ve daire bilgileri
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: block,
+                        decoration: const InputDecoration(
+                          labelText: 'Blok',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            block = value;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: apartment,
+                        decoration: const InputDecoration(
+                          labelText: 'Daire',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            apartment = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (selectedProject == null) return;
+
+                  // Yeni proje ilişkisi oluştur
+                  final projectAssociation = ProjectAssociation(
+                    projectId: selectedProject!.id,
+                    role: role,
+                    hasSpecialAccess: hasSpecialAccess,
+                    additionalInfo: {
+                      'block': block,
+                      'apartment': apartment,
+                    },
+                  );
+
+                  // Mevcut ilişkiler listesine ekle
+                  final currentAssociations = ref
+                      .read(editScreenProjectsProvider(widget.kullanici!.id));
+
+                  // Aynı proje zaten eklenmiş mi kontrol et
+                  final isDuplicate = currentAssociations
+                      .any((p) => p.projectId == selectedProject!.id);
+
+                  if (isDuplicate) {
+                    // Hata mesajı göster
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Bu proje zaten eklenmiş'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  // Listeyi güncelle
+                  ref
+                      .read(editScreenProjectsProvider(widget.kullanici!.id)
+                          .notifier)
+                      .state = [
+                    ...currentAssociations,
+                    projectAssociation,
+                  ];
+
+                  Navigator.pop(context);
+                },
+                child: const Text('Ekle'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Proje düzenleme dialog'u
+  Future<void> _showEditProjectDialog(
+      BuildContext context, ProjectAssociation project) async {
+    final projectModel = _findProjeById(project.projectId);
+    if (projectModel == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Proje bulunamadı'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    String role = project.role;
+    bool hasSpecialAccess = project.hasSpecialAccess;
+    String block = project.additionalInfo?['block'] ?? '';
+    String apartment = project.additionalInfo?['apartment'] ?? '';
+
+    return showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Proje Düzenle: ${projectModel.unvan}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Rol seçimi
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Kat Maliki'),
+                        value: 'siteSakini',
+                        groupValue: role,
+                        onChanged: (value) {
+                          setState(() {
+                            role = value!;
+                          });
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Kiracı'),
+                        value: 'kiraci',
+                        groupValue: role,
+                        onChanged: (value) {
+                          setState(() {
+                            role = value!;
+                          });
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Özel erişim switch'i
+                SwitchListTile(
+                  title: const Text('Özel Erişim'),
+                  subtitle: const Text('Site yönetimi yetkisi'),
+                  value: hasSpecialAccess,
+                  onChanged: (value) {
+                    setState(() {
+                      hasSpecialAccess = value;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Blok ve daire bilgileri
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: block,
+                        decoration: const InputDecoration(
+                          labelText: 'Blok',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            block = value;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: apartment,
+                        decoration: const InputDecoration(
+                          labelText: 'Daire',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            apartment = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Güncellenmiş proje ilişkisi oluştur
+                  final updatedProject = ProjectAssociation(
+                    projectId: project.projectId,
+                    role: role,
+                    hasSpecialAccess: hasSpecialAccess,
+                    additionalInfo: {
+                      'block': block,
+                      'apartment': apartment,
+                    },
+                  );
+
+                  // Mevcut ilişkiler listesinden eskisini kaldır, yenisini ekle
+                  final currentAssociations = ref
+                      .read(editScreenProjectsProvider(widget.kullanici!.id));
+                  final updatedAssociations = currentAssociations.map((p) {
+                    if (p.projectId == project.projectId) {
+                      return updatedProject;
+                    }
+                    return p;
+                  }).toList();
+
+                  // Listeyi güncelle
+                  ref
+                      .read(editScreenProjectsProvider(widget.kullanici!.id)
+                          .notifier)
+                      .state = updatedAssociations;
+
+                  Navigator.pop(context);
+                },
+                child: const Text('Güncelle'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Kullanıcıdan proje kaldır
+  void _removeProjectFromUser(ProjectAssociation project) {
+    // Onay sor
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Projeyi Kaldır'),
+        content: const Text(
+            'Bu projeyi kullanıcıdan kaldırmak istediğinize emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Mevcut ilişkiler listesinden kaldır
+              final currentAssociations =
+                  ref.read(editScreenProjectsProvider(widget.kullanici!.id));
+              final updatedAssociations = currentAssociations
+                  .where((p) => p.projectId != project.projectId)
+                  .toList();
+
+              // Listeyi güncelle
+              ref
+                  .read(
+                      editScreenProjectsProvider(widget.kullanici!.id).notifier)
+                  .state = updatedAssociations;
+
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Kaldır'),
+          ),
+        ],
       ),
     );
   }
@@ -399,9 +1022,24 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
     }
   }
 
+  // ID'ye göre proje bul
+  ProjeModel? _findProjeById(String projectId) {
+    for (var proje in _projeler) {
+      if (proje.id == projectId) {
+        return proje;
+      }
+    }
+    return null;
+  }
+
   // Kullanıcıyı kaydet
   void _saveUser() {
     if (_formKey.currentState!.validate()) {
+      // Mevcut proje ilişkilerini al
+      final projectAssociations = widget.kullanici != null
+          ? ref.read(editScreenProjectsProvider(widget.kullanici!.id))
+          : <ProjectAssociation>[];
+
       // Yeni kullanıcı oluştur veya mevcut kullanıcıyı güncelle
       final kullanici = KullaniciModel(
         id: widget.kullanici?.id ?? '',
@@ -413,6 +1051,7 @@ class _KullaniciEditDialogState extends ConsumerState<KullaniciEditDialog> {
         kayitTarihi: widget.kullanici?.kayitTarihi,
         profilFotoUrl: widget.kullanici?.profilFotoUrl,
         ekBilgiler: widget.kullanici?.ekBilgiler,
+        projectAssociations: projectAssociations,
       );
 
       Navigator.pop(context, kullanici);
